@@ -1,0 +1,76 @@
+<div th:fragment="route-list">
+    <!-- Add Route Form -->
+    <div class="mb-6 bg-gray-50 p-4 rounded border border-gray-200">
+        <h4 class="font-bold text-gray-700 mb-2">Add New Proxy Route</h4>
+        <form th:action="@{/routes/collection/{id}(id=${currentCollection.id})}" method="post" th:object="${routeForm}"
+            class="flex flex-wrap gap-4 items-end">
+            <div class="flex-1 min-w-[200px]">
+                <label class="block text-xs uppercase text-gray-500 font-bold mb-1">Source Path Prefix</label>
+                <input type="text" th:field="*{pathOrigem}" placeholder="/api/service-a" required
+                    class="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:border-indigo-500 font-mono">
+            </div>
+            <div class="flex-1 min-w-[200px]">
+                <label class="block text-xs uppercase text-gray-500 font-bold mb-1">Target Host URL</label>
+                <input type="text" th:field="*{targetHost}" placeholder="http://service-a:8080" required
+                    class="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:border-indigo-500 font-mono">
+            </div>
+            <button type="submit"
+                class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded text-sm h-[38px] transition duration-150">
+                <i class="fas fa-plus"></i> Add Route
+            </button>
+        </form>
+    </div>
+
+    <!-- Routes Table -->
+    <div class="overflow-x-auto">
+        <table class="min-w-full bg-white border border-gray-200 rounded-lg overflow-hidden">
+            <thead class="bg-gray-100 text-gray-600 uppercase text-xs leading-normal">
+                <tr>
+                    <th class="py-3 px-6 text-left">Status</th>
+                    <th class="py-3 px-6 text-left">Source Path</th>
+                    <th class="py-3 px-6 text-left">Target Host</th>
+                    <th class="py-3 px-6 text-center">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="text-gray-600 text-sm font-light">
+                <tr th:each="route : ${routes}" th:fragment="route-row"
+                    class="border-b border-gray-200 hover:bg-gray-50 transition duration-150">
+                    <td class="py-3 px-6 text-left whitespace-nowrap">
+                        <button th:hx-patch="@{/routes/{id}/toggle(id=${route.id})}" th:hx-target="'closest tr'"
+                            th:hx-swap="'outerHTML'"
+                            class="flex items-center space-x-2 focus:outline-none cursor-pointer">
+                            <span th:if="${route.isActive}"
+                                class="bg-green-200 text-green-700 py-1 px-3 rounded-full text-xs font-bold">Active</span>
+                            <span th:unless="${route.isActive}"
+                                class="bg-gray-200 text-gray-500 py-1 px-3 rounded-full text-xs font-bold">Inactive</span>
+                        </button>
+                    </td>
+                    <td class="py-3 px-6 text-left">
+                        <span class="font-mono font-medium text-gray-800" th:text="${route.pathOrigem}">/path</span>
+                    </td>
+                    <td class="py-3 px-6 text-left">
+                        <span class="font-mono text-gray-600" th:text="${route.targetHost}">http://host</span>
+                    </td>
+                    <td class="py-3 px-6 text-center">
+                        <div class="flex item-center justify-center">
+                            <form th:action="@{/routes/{id}(id=${route.id})}" th:method="delete"
+                                onsubmit="return confirm('Delete this route?');">
+                                <button type="submit"
+                                    class="w-4 mr-2 transform hover:text-red-500 hover:scale-110 transition duration-150">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                <!-- Empty State -->
+                <tr th:if="${#lists.isEmpty(routes)}">
+                    <td colspan="4" class="py-8 text-center text-gray-400">
+                        <i class="fas fa-wind text-4xl mb-2 block"></i>
+                        No proxy routes defined yet.
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>

@@ -1,0 +1,102 @@
+package com.gustavoreinaldi.dev_utils.controller;
+
+import com.gustavoreinaldi.dev_utils.model.dtos.CollectionForm;
+import com.gustavoreinaldi.dev_utils.model.entities.ProjectCollection;
+import com.gustavoreinaldi.dev_utils.repository.ProjectCollectionRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@Controller
+@RequestMapping("/collections")
+@RequiredArgsConstructor
+public class CollectionWebController {
+
+    private final ProjectCollectionRepository projectCollectionRepository;
+
+    @GetMapping
+    public String index() {
+        List<ProjectCollection> collections = projectCollectionRepository.findAll();
+        if (collections.isEmpty()) {
+            // If no collections, stay on a landing page or create one
+            return "redirect:/collections/new";
+        }
+        // Redirect to the first collection's dashboard
+        return "redirect:/collections/" + collections.get(0).getId();
+    }
+
+    @GetMapping("/new")
+    public String newCollection(Model model) {
+        // Just show the layout with sidebar (needing collections list) and the welcome
+        // page
+        List<ProjectCollection> collections = projectCollectionRepository.findAll();
+        model.addAttribute("collections", collections);
+        model.addAttribute("newCollectionForm", new CollectionForm("", "", ""));
+        return "welcome";
+    }
+
+    // Using a separate mapping for the root to handle the initial load
+    // This methods allows us to redirect to /collections from /
+    // See RootController below (or we can add it here if @RequestMapping is not
+    // strict)
+
+    @GetMapping("/{id}")
+    public String dashboard(@PathVariable Long id, Model model) {
+        ProjectCollection collection = projectCollectionRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Invalid collection Id:" + id));
+
+        model.addAttribute("currentCollection", collection);
+        // model.addAttribute("collections", allCollections); // Handled by
+        // GlobalControllerAdvice
+
+        model.addAttribute("routes", collection.getRouteConfigs());
+        model.addAttribute("mocks", collection.getMockConfigs());
+
+        // Forms for editing and creating children
+        model.addAttribute("collectionForm",
+                new CollectionForm(collection.getName(), collection.getDescription(), collection.getFallbackUrl()));
+        model.addAttribute("routeForm", new com.gustavoreinaldi.dev_utils.model.dtos.RouteForm(null, null));
+        model.addAttribute("mockForm", new com.gustavoreinaldi.dev_utils.model.dtos.MockForm(null, null, null, null));
+
+        return "dashboard";
+    }
+
+    @PostMapping
+    public String create(@ModelAttribute("newCollectionForm") CollectionForm form) {
+        ProjectCollection collection = ProjectCollection.builder()
+                .name(form.getName())
+                .description(form.getDescription())
+                .fallbackUrl(form.getFallbackUrl())
+                .build();
+        projectCollectionRepository.save(collection);
+        return "redirect:/collections/" + collection.getId();
+    }
+
+    @PostMapping("/{id}")
+    public String update(@PathVariable Long id, @jakarta.validation.Valid @ModelAttribute CollectionForm form,
+            org.springframework.validation.BindingResult bindingResult) {
+        if (bindingResult.hasErrors()) {
+            return "redirect:/collections/" + id;
+        }
+        ProjectCollection collection = projectCollectionRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Invalid collection Id:" + id));
+
+        // Update fields
+        collection.setName(form.getName());
+        collection.setDescription(form.getDescription());
+        collection.setFallbackUrl(form.getFallbackUrl());
+
+        projectCollectionRepository.save(collection);
+
+        return "redirect:/collections/" + id;
+    }
+
+    @DeleteMapping("/{id}")
+    public String delete(@PathVariable Long id) {
+        projectCollectionRepository.deleteById(id);
+        return "redirect:/collections";
+    }
+}

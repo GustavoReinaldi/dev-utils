@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+    layout:decorate="~{layout}">
+
+<head>
+    <title>Welcome</title>
+</head>
+
+<body>
+    <div layout:fragment="content" class="flex flex-col items-center justify-center h-full text-center space-y-4">
+        <div class="bg-white p-10 rounded-lg shadow-lg max-w-lg">
+            <i class="fas fa-cubes text-6xl text-indigo-200 mb-6"></i>
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">Welcome to Dev Utils</h1>
+            <p class="text-gray-600 mb-8">
+                You haven't selected a collection yet, or you don't have any collections created.
+            </p>
+            <p class="text-sm text-gray-500">
+                Use the sidebar on the left to <strong>Create a New Collection</strong> to start managing your proxy
+                routes and mocks.
+            </p>
+        </div>
+    </div>
+</body>
+
+</html>
