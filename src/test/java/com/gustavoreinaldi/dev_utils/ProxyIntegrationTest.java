@@ -96,8 +96,9 @@ public class ProxyIntegrationTest {
                 routeRepo.save(route);
 
                 // Mock RestTemplate response
-                when(restTemplate.exchange(any(RequestEntity.class), eq(Object.class)))
-                                .thenReturn(new ResponseEntity<>("proxied_response", HttpStatus.OK));
+                byte[] responseBytes = "proxied_response".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                when(restTemplate.exchange(any(RequestEntity.class), eq(byte[].class)))
+                                .thenReturn(new ResponseEntity<>(responseBytes, HttpStatus.OK));
 
                 mockMvc.perform(post("/api/service/users")
                                 .content("test body"))
@@ -106,7 +107,7 @@ public class ProxyIntegrationTest {
 
                 // Verify RestTemplate called with correct URL
                 ArgumentCaptor<RequestEntity> captor = ArgumentCaptor.forClass(RequestEntity.class);
-                verify(restTemplate).exchange(captor.capture(), eq(Object.class));
+                verify(restTemplate).exchange(captor.capture(), eq(byte[].class));
 
                 RequestEntity capturedRequest = captor.getValue();
                 assertEquals(new URI("http://backend-service.com/api/service/users"), capturedRequest.getUrl());
@@ -118,8 +119,9 @@ public class ProxyIntegrationTest {
                 // No mock, No route
                 // Should hit fallbackUrl configured in collection: http://fallback.com
 
-                when(restTemplate.exchange(any(RequestEntity.class), eq(Object.class)))
-                                .thenReturn(new ResponseEntity<>("fallback_response", HttpStatus.OK));
+                byte[] responseBytes = "fallback_response".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                when(restTemplate.exchange(any(RequestEntity.class), eq(byte[].class)))
+                                .thenReturn(new ResponseEntity<>(responseBytes, HttpStatus.OK));
 
                 mockMvc.perform(get("/unknown/path"))
                                 .andExpect(status().isOk())
@@ -127,7 +129,7 @@ public class ProxyIntegrationTest {
 
                 // Verify RestTemplate called with fallback URL
                 ArgumentCaptor<RequestEntity> captor = ArgumentCaptor.forClass(RequestEntity.class);
-                verify(restTemplate).exchange(captor.capture(), eq(Object.class));
+                verify(restTemplate).exchange(captor.capture(), eq(byte[].class));
                 assertEquals(new URI("http://fallback.com/unknown/path"), captor.getValue().getUrl());
         }
 }

@@ -94,7 +94,10 @@ public class ProxyService {
                     originalEntity.getHeaders(),
                     originalEntity.getMethod(),
                     uri);
-            return restTemplate.exchange(forwardEntity, Object.class);
+            ResponseEntity<byte[]> response = restTemplate.exchange(forwardEntity, byte[].class);
+            return ResponseEntity.status(response.getStatusCode())
+                    .headers(response.getHeaders())
+                    .body(response.getBody());
         } catch (HttpClientErrorException | HttpServerErrorException e) {
             return ResponseEntity.status(e.getStatusCode())
                     .headers(e.getResponseHeaders())
