@@ -34,7 +34,7 @@ public class CollectionWebController {
         // page
         List<ProjectCollection> collections = projectCollectionRepository.findAll();
         model.addAttribute("collections", collections);
-        model.addAttribute("newCollectionForm", new CollectionForm("", "", ""));
+        model.addAttribute("newCollectionForm", new CollectionForm());
         return "welcome";
     }
 
@@ -56,16 +56,20 @@ public class CollectionWebController {
         model.addAttribute("mocks", collection.getMockConfigs());
 
         // Forms for editing and creating children
-        model.addAttribute("collectionForm",
-                new CollectionForm(collection.getName(), collection.getDescription(), collection.getFallbackUrl()));
-        model.addAttribute("routeForm", new com.gustavoreinaldi.dev_utils.model.dtos.RouteForm(null, null));
-        model.addAttribute("mockForm", new com.gustavoreinaldi.dev_utils.model.dtos.MockForm(null, null, null, null));
+        CollectionForm collectionForm = new CollectionForm();
+        collectionForm.setName(collection.getName());
+        collectionForm.setDescription(collection.getDescription());
+        collectionForm.setFallbackUrl(collection.getFallbackUrl());
+
+        model.addAttribute("collectionForm", collectionForm);
+        model.addAttribute("routeForm", new com.gustavoreinaldi.dev_utils.model.dtos.RouteForm());
+        model.addAttribute("mockForm", new com.gustavoreinaldi.dev_utils.model.dtos.MockForm());
 
         return "dashboard";
     }
 
     @PostMapping
-    public String create(@ModelAttribute("newCollectionForm") CollectionForm form) {
+    public String create(@ModelAttribute("submitCollectionForm") CollectionForm form) {
         ProjectCollection collection = ProjectCollection.builder()
                 .name(form.getName())
                 .description(form.getDescription())

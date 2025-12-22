@@ -22,7 +22,7 @@ public class GlobalControllerAdvice {
         List<ProjectCollection> collections = projectCollectionRepository.findAll();
         model.addAttribute("collections", collections);
         if (!model.containsAttribute("newCollectionForm")) {
-            model.addAttribute("newCollectionForm", new CollectionForm("", "", ""));
+            model.addAttribute("newCollectionForm", new CollectionForm());
         }
     }
 }
