@@ -18,8 +18,7 @@ public class ProxyController {
     @RequestMapping("/**")
     public ResponseEntity<Object> splitAll(
             HttpServletRequest request,
-            RequestEntity<byte[]> requestEntity,
-            @RequestHeader(value = "X-Project-Collection-ID", required = false) Long collectionId) {
+            RequestEntity<byte[]> requestEntity) {
 
         // Exclude specific internal API paths if necessary, but "/**" catches
         // everything.
@@ -27,6 +26,6 @@ public class ProxyController {
         // Spring matches more specific mappings first, so real API controllers should
         // take precedence naturally.
 
-        return proxyService.processRequest(request, requestEntity, collectionId);
+        return proxyService.processRequest(request, requestEntity);
     }
 }

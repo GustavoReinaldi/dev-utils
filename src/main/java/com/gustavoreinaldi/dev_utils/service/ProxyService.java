@@ -33,57 +33,57 @@ public class ProxyService {
     private final ProjectCollectionRepository projectCollectionRepository;
     private final RestOperations restTemplate;
 
-    public ResponseEntity<Object> processRequest(HttpServletRequest request, RequestEntity<byte[]> requestEntity,
-            Long collectionId) {
+    public ResponseEntity<Object> processRequest(HttpServletRequest request, RequestEntity<byte[]> requestEntity) {
         String path = request.getRequestURI();
         String method = request.getMethod();
 
         log.info("Processing request: {} {}", method, path);
 
-        // 0. Resolve Collection
-        ProjectCollection collection = resolveCollection(collectionId);
-        if (collection == null) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("No Project Collection found or selected.");
+        // 1. Check Mock (Global)
+        List<MockConfig> mocks = mockRepository.findActiveMockConfigs(path, method);
+        if (mocks.size() > 1) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("Conflict: Multiple mocks found for path " + path);
         }
-
-        // 1. Check Mock
-        Optional<MockConfig> mockOpt = mockRepository.findActiveMockConfig(collection.getId(), path, method);
-        if (mockOpt.isPresent()) {
+        if (!mocks.isEmpty()) {
+            MockConfig mock = mocks.get(0);
             log.info("Mock found for {} {}", method, path);
-            MockConfig mock = mockOpt.get();
             return ResponseEntity.status(mock.getStatusCode())
                     .header(HttpHeaders.CONTENT_TYPE, "application/json")
                     .body(mock.getResponseBody());
         }
 
-        // 2. Check Route (Proxy)
-        List<RouteConfig> routes = routeRepository.findActiveRoutesByCollection(collection.getId());
-        for (RouteConfig route : routes) {
+        // 2. Check Route (Global)
+        List<RouteConfig> allRoutes = routeRepository.findAllActiveRoutes();
+        java.util.List<RouteConfig> matchingRoutes = new java.util.ArrayList<>();
+        for (RouteConfig route : allRoutes) {
             if (path.startsWith(route.getPathOrigem())) {
-                String targetUrl = route.getTargetHost() + path; // Simple append, can be improved to strip prefix if
-                                                                 // needed
-                log.info("Route matched. Proxying to: {}", targetUrl);
-                return forwardRequest(targetUrl, requestEntity);
+                matchingRoutes.add(route);
             }
         }
 
-        // 3. Fallback
-        if (collection.getFallbackUrl() != null && !collection.getFallbackUrl().isEmpty()) {
-            String fallbackUrl = collection.getFallbackUrl() + path;
-            log.info("No mock/route found. Fallback to: {}", fallbackUrl);
-            return forwardRequest(fallbackUrl, requestEntity);
+        if (matchingRoutes.size() > 1) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("Conflict: Multiple routes matched path " + path);
+        }
+
+        if (!matchingRoutes.isEmpty()) {
+            RouteConfig route = matchingRoutes.get(0);
+            String targetUrl = route.getTargetHost() + path;
+            log.info("Route matched. Proxying to: {}", targetUrl);
+            return forwardRequest(targetUrl, requestEntity);
+        }
+
+        // 3. Fallback (First Active Collection)
+        List<ProjectCollection> allCollections = projectCollectionRepository.findAll();
+        if (!allCollections.isEmpty()) {
+            ProjectCollection collection = allCollections.get(0);
+            if (collection.getFallbackUrl() != null && !collection.getFallbackUrl().isEmpty()) {
+                String fallbackUrl = collection.getFallbackUrl() + path;
+                log.info("No mock/route found. Fallback to: {}", fallbackUrl);
+                return forwardRequest(fallbackUrl, requestEntity);
+            }
         }
 
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body("No mock, route or fallback configured for this path.");
-    }
-
-    private ProjectCollection resolveCollection(Long collectionId) {
-        if (collectionId != null) {
-            return projectCollectionRepository.findById(collectionId).orElse(null);
-        }
-        // Default to first one for now if not specified - to be improved
-        List<ProjectCollection> all = projectCollectionRepository.findAll();
-        return all.isEmpty() ? null : all.get(0);
     }
 
     private ResponseEntity<Object> forwardRequest(String targetUrl, RequestEntity<byte[]> originalEntity) {

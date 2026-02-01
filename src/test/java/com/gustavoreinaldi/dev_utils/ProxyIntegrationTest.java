@@ -132,4 +132,89 @@ public class ProxyIntegrationTest {
                 verify(restTemplate).exchange(captor.capture(), eq(byte[].class));
                 assertEquals(new URI("http://fallback.com/unknown/path"), captor.getValue().getUrl());
         }
+
+        @Test
+        void testMockCollision() throws Exception {
+                // Create a second collection
+                ProjectCollection collection2 = ProjectCollection.builder()
+                                .name("Collection 2")
+                                .build();
+                collectionRepo.save(collection2);
+
+                // Create same mock in both collections
+                MockConfig mock1 = MockConfig.builder()
+                                .projectCollection(savedCollection)
+                                .path("/api/collision")
+                                .httpMethod("GET")
+                                .statusCode(200)
+                                .responseBody("Mock 1")
+                                .isActive(true)
+                                .build();
+                mockRepo.save(mock1);
+
+                MockConfig mock2 = MockConfig.builder()
+                                .projectCollection(collection2)
+                                .path("/api/collision")
+                                .httpMethod("GET")
+                                .statusCode(200)
+                                .responseBody("Mock 2")
+                                .isActive(true)
+                                .build();
+                mockRepo.save(mock2);
+
+                // Expect 409 Conflict
+                mockMvc.perform(get("/api/collision"))
+                                .andExpect(status().isConflict());
+        }
+
+        @Test
+        void testRouteCollision() throws Exception {
+                // Create a second collection
+                ProjectCollection collection2 = ProjectCollection.builder()
+                                .name("Collection 2")
+                                .build();
+                collectionRepo.save(collection2);
+
+                // Create same route in both collections
+                RouteConfig route1 = RouteConfig.builder()
+                                .projectCollection(savedCollection)
+                                .pathOrigem("/api/conflict")
+                                .targetHost("http://host1")
+                                .isActive(true)
+                                .build();
+                routeRepo.save(route1);
+
+                RouteConfig route2 = RouteConfig.builder()
+                                .projectCollection(collection2)
+                                .pathOrigem("/api/conflict")
+                                .targetHost("http://host2")
+                                .isActive(true)
+                                .build();
+                routeRepo.save(route2);
+
+                // Expect 409 Conflict
+                mockMvc.perform(get("/api/conflict/something"))
+                                .andExpect(status().isConflict());
+        }
+
+        @Test
+        void testCrossCollectionHit() throws Exception {
+                // Ensure we can hit a mock in a second collection without any header
+                ProjectCollection collection2 = ProjectCollection.builder().name("C2").build();
+                collectionRepo.save(collection2);
+
+                MockConfig mock = MockConfig.builder()
+                                .projectCollection(collection2)
+                                .path("/api/c2")
+                                .httpMethod("GET")
+                                .statusCode(202)
+                                .responseBody("c2")
+                                .isActive(true)
+                                .build();
+                mockRepo.save(mock);
+
+                mockMvc.perform(get("/api/c2"))
+                                .andExpect(status().isAccepted())
+                                .andExpect(content().string("c2"));
+        }
 }
