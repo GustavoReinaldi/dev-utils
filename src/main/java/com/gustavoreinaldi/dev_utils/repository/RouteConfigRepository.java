@@ -12,4 +12,7 @@ public interface RouteConfigRepository extends JpaRepository<RouteConfig, Long> 
 
     @Query("SELECT r FROM RouteConfig r WHERE r.projectCollection.id = :collectionId AND r.isActive = true")
     List<RouteConfig> findActiveRoutesByCollection(Long collectionId);
+
+    @Query("SELECT r FROM RouteConfig r WHERE r.isActive = true")
+    List<RouteConfig> findAllActiveRoutes();
 }
