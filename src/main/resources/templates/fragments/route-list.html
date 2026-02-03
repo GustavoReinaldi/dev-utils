@@ -21,6 +21,38 @@
         </form>
     </div>
 
+    <!-- Filters -->
+    <form th:hx-get="@{/collections/{id}(id=${currentCollection.id})}"
+          hx-target="#myTabContent"
+          hx-select="#myTabContent"
+          hx-push-url="true"
+          class="flex items-center space-x-2 mb-4 bg-white p-2 rounded shadow-sm border border-gray-100 w-fit">
+        <input type="hidden" name="tab" value="routes">
+        <th:block th:each="ms : ${mockStatus}">
+            <input type="hidden" name="mockStatus" th:value="${ms}">
+        </th:block>
+
+        <span class="text-xs font-bold text-gray-500 uppercase tracking-wider mr-2">Exibir:</span>
+        <label class="cursor-pointer">
+            <input type="checkbox" name="routeStatus" value="active"
+                   th:checked="${#lists.contains(routeStatus, 'active')}"
+                   class="hidden" onchange="this.form.requestSubmit()">
+            <span class="px-3 py-1 rounded-full text-xs font-bold transition duration-150 border-2"
+                  th:classappend="${#lists.contains(routeStatus, 'active')} ? 'bg-green-600 border-green-600 text-white shadow-sm' : 'bg-white border-gray-300 text-gray-400 hover:border-green-400 hover:text-green-500'">
+                Ativo
+            </span>
+        </label>
+        <label class="cursor-pointer">
+            <input type="checkbox" name="routeStatus" value="inactive"
+                   th:checked="${#lists.contains(routeStatus, 'inactive')}"
+                   class="hidden" onchange="this.form.requestSubmit()">
+            <span class="px-3 py-1 rounded-full text-xs font-bold transition duration-150 border-2"
+                  th:classappend="${#lists.contains(routeStatus, 'inactive')} ? 'bg-gray-600 border-gray-600 text-white shadow-sm' : 'bg-white border-gray-300 text-gray-400 hover:border-gray-500 hover:text-gray-500'">
+                Inativo
+            </span>
+        </label>
+    </form>
+
     <!-- Routes Table -->
     <div class="overflow-x-auto">
         <table class="min-w-full bg-white border border-gray-200 rounded-lg overflow-hidden">
@@ -33,7 +65,11 @@
                 </tr>
             </thead>
             <tbody class="text-gray-600 text-sm font-light">
-                <tr th:each="route : ${routes}" th:fragment="route-row"
+                <th:block th:each="route : ${routes}">
+                    <tr th:replace="~{::route-row(${route})}"></tr>
+                </th:block>
+
+                <tr th:fragment="route-row(route)" th:if="${route != null}"
                     class="border-b border-gray-200 hover:bg-gray-50 transition duration-150">
                     <td class="py-3 px-6 text-left whitespace-nowrap">
                         <button th:hx-patch="@{/routes/{id}/toggle(id=${route.id})}" th:hx-target="'closest tr'"

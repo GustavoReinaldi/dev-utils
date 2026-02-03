@@ -90,10 +90,14 @@
 
         <!-- Tab Content -->
         <!-- Simple JS to toggle tabs since not using flowbite fully, just manual toggle for simplicity -->
-        <script>
+        <script th:inline="javascript">
             function showTab(tabName) {
-                document.getElementById('routes-content').classList.add('hidden');
-                document.getElementById('mocks-content').classList.add('hidden');
+                const routesContent = document.getElementById('routes-content');
+                const mocksContent = document.getElementById('mocks-content');
+                if (!routesContent || !mocksContent) return;
+
+                routesContent.classList.add('hidden');
+                mocksContent.classList.add('hidden');
 
                 document.getElementById(tabName + '-content').classList.remove('hidden');
 
@@ -106,19 +110,32 @@
 
             // Init
             document.addEventListener("DOMContentLoaded", function () {
-                showTab('routes');
+                var activeTab = [[${activeTab}]];
+                showTab(activeTab || 'routes');
+            });
+
+            // Re-init on HTMX swap to ensure correct tab is shown if full content was replaced
+            document.body.addEventListener('htmx:afterSwap', function(evt) {
+                if (evt.detail.target.id === 'myTabContent') {
+                    // Extract active tab from the URL
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const activeTab = urlParams.get('tab') || 'routes';
+                    showTab(activeTab);
+                }
             });
         </script>
 
         <div id="myTabContent">
             <!-- Routes Tab -->
-            <div class="hidden p-4 rounded-lg bg-white shadow-md" id="routes-content" role="tabpanel"
+            <div th:classappend="${activeTab == 'routes'} ? '' : 'hidden'"
+                 class="p-4 rounded-lg bg-white shadow-md" id="routes-content" role="tabpanel"
                 aria-labelledby="routes-tab">
                 <div th:replace="~{fragments/route-list :: route-list}"></div>
             </div>
 
             <!-- Mocks Tab -->
-            <div class="hidden p-4 rounded-lg bg-white shadow-md" id="mocks-content" role="tabpanel"
+            <div th:classappend="${activeTab == 'mocks'} ? '' : 'hidden'"
+                 class="p-4 rounded-lg bg-white shadow-md" id="mocks-content" role="tabpanel"
                 aria-labelledby="mocks-tab">
                 <div th:replace="~{fragments/mock-list :: mock-list}"></div>
             </div>
