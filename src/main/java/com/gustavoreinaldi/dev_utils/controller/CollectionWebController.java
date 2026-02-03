@@ -1,7 +1,9 @@
 package com.gustavoreinaldi.dev_utils.controller;
 
 import com.gustavoreinaldi.dev_utils.model.dtos.CollectionForm;
+import com.gustavoreinaldi.dev_utils.model.entities.GlobalConfig;
 import com.gustavoreinaldi.dev_utils.model.entities.ProjectCollection;
+import com.gustavoreinaldi.dev_utils.repository.GlobalConfigRepository;
 import com.gustavoreinaldi.dev_utils.repository.ProjectCollectionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
@@ -18,6 +20,7 @@ import java.util.stream.Collectors;
 public class CollectionWebController {
 
     private final ProjectCollectionRepository projectCollectionRepository;
+    private final GlobalConfigRepository globalConfigRepository;
 
     @GetMapping
     public String index() {
@@ -93,9 +96,13 @@ public class CollectionWebController {
         CollectionForm collectionForm = new CollectionForm();
         collectionForm.setName(collection.getName());
         collectionForm.setDescription(collection.getDescription());
-        collectionForm.setFallbackUrl(collection.getFallbackUrl());
 
         model.addAttribute("collectionForm", collectionForm);
+
+        String fallbackUrl = globalConfigRepository.findById(1L)
+                .map(GlobalConfig::getFallbackUrl)
+                .orElse("");
+        model.addAttribute("globalFallbackUrl", fallbackUrl);
         model.addAttribute("routeForm", new com.gustavoreinaldi.dev_utils.model.dtos.RouteForm());
         model.addAttribute("mockForm", new com.gustavoreinaldi.dev_utils.model.dtos.MockForm());
 
@@ -107,7 +114,6 @@ public class CollectionWebController {
         ProjectCollection collection = ProjectCollection.builder()
                 .name(form.getName())
                 .description(form.getDescription())
-                .fallbackUrl(form.getFallbackUrl())
                 .build();
         projectCollectionRepository.save(collection);
         return "redirect:/collections/" + collection.getId();
@@ -115,17 +121,25 @@ public class CollectionWebController {
 
     @PostMapping("/{id}")
     public String update(@PathVariable Long id, @jakarta.validation.Valid @ModelAttribute CollectionForm form,
+            @RequestParam(value = "globalFallbackUrl", required = false) String globalFallbackUrl,
             org.springframework.validation.BindingResult bindingResult) {
+
+        // Update global config
+        GlobalConfig config = globalConfigRepository.findById(1L)
+                .orElse(GlobalConfig.builder().id(1L).build());
+        config.setFallbackUrl(globalFallbackUrl);
+        globalConfigRepository.save(config);
+
         if (bindingResult.hasErrors()) {
             return "redirect:/collections/" + id;
         }
+
         ProjectCollection collection = projectCollectionRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Invalid collection Id:" + id));
 
         // Update fields
         collection.setName(form.getName());
         collection.setDescription(form.getDescription());
-        collection.setFallbackUrl(form.getFallbackUrl());
 
         projectCollectionRepository.save(collection);
 

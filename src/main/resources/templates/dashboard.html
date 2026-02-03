@@ -49,7 +49,7 @@
                 </div>
                 <div class="flex-[2]">
                     <label class="block text-gray-700 text-sm font-bold mb-2">Fallback URL (Target Host)</label>
-                    <input type="text" th:field="*{fallbackUrl}" placeholder="http://localhost:8081"
+                    <input type="text" name="globalFallbackUrl" th:value="${globalFallbackUrl}" placeholder="http://localhost:8081"
                         class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline font-mono">
                 </div>
                 <!-- Display global errors if any -->
