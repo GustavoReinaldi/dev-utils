@@ -1,15 +1,26 @@
 package com.gustavoreinaldi.dev_utils.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gustavoreinaldi.dev_utils.model.dtos.CollectionForm;
+import com.gustavoreinaldi.dev_utils.model.dtos.export.MockConfigExportDTO;
+import com.gustavoreinaldi.dev_utils.model.dtos.export.ProjectCollectionExportDTO;
+import com.gustavoreinaldi.dev_utils.model.dtos.export.RouteConfigExportDTO;
 import com.gustavoreinaldi.dev_utils.model.entities.GlobalConfig;
+import com.gustavoreinaldi.dev_utils.model.entities.MockConfig;
 import com.gustavoreinaldi.dev_utils.model.entities.ProjectCollection;
+import com.gustavoreinaldi.dev_utils.model.entities.RouteConfig;
 import com.gustavoreinaldi.dev_utils.repository.GlobalConfigRepository;
 import com.gustavoreinaldi.dev_utils.repository.ProjectCollectionRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -21,6 +32,7 @@ public class CollectionWebController {
 
     private final ProjectCollectionRepository projectCollectionRepository;
     private final GlobalConfigRepository globalConfigRepository;
+    private final ObjectMapper objectMapper;
 
     @GetMapping
     public String index() {
@@ -70,7 +82,7 @@ public class CollectionWebController {
             routeStatus = Arrays.asList("active", "inactive");
         }
 
-        List<com.gustavoreinaldi.dev_utils.model.entities.RouteConfig> routes = collection.getRouteConfigs();
+        List<RouteConfig> routes = collection.getRouteConfigs();
         if (routeStatus.size() < 2 && !routeStatus.isEmpty()) {
             boolean activeOnly = routeStatus.contains("active");
             routes = routes.stream()
@@ -78,7 +90,7 @@ public class CollectionWebController {
                     .collect(Collectors.toList());
         }
 
-        List<com.gustavoreinaldi.dev_utils.model.entities.MockConfig> mocks = collection.getMockConfigs();
+        List<MockConfig> mocks = collection.getMockConfigs();
         if (mockStatus.size() < 2 && !mockStatus.isEmpty()) {
             boolean activeOnly = mockStatus.contains("active");
             mocks = mocks.stream()
@@ -150,5 +162,77 @@ public class CollectionWebController {
     public String delete(@PathVariable Long id) {
         projectCollectionRepository.deleteById(id);
         return "redirect:/collections";
+    }
+
+    @PostMapping("/import")
+    public String importCollection(@RequestParam("file") MultipartFile file) throws IOException {
+        ProjectCollectionExportDTO exportDTO = objectMapper.readValue(file.getInputStream(), ProjectCollectionExportDTO.class);
+
+        ProjectCollection collection = ProjectCollection.builder()
+                .name(exportDTO.getName())
+                .description(exportDTO.getDescription())
+                .routeConfigs(new ArrayList<>())
+                .mockConfigs(new ArrayList<>())
+                .build();
+
+        if (exportDTO.getRouteConfigs() != null) {
+            collection.getRouteConfigs().addAll(exportDTO.getRouteConfigs().stream()
+                    .map(r -> RouteConfig.builder()
+                            .pathOrigem(r.getPathOrigem())
+                            .targetHost(r.getTargetHost())
+                            .isActive(r.getIsActive())
+                            .projectCollection(collection)
+                            .build())
+                    .collect(Collectors.toList()));
+        }
+
+        if (exportDTO.getMockConfigs() != null) {
+            collection.getMockConfigs().addAll(exportDTO.getMockConfigs().stream()
+                    .map(m -> MockConfig.builder()
+                            .path(m.getPath())
+                            .httpMethod(m.getHttpMethod())
+                            .statusCode(m.getStatusCode())
+                            .responseBody(m.getResponseBody())
+                            .isActive(m.getIsActive())
+                            .projectCollection(collection)
+                            .build())
+                    .collect(Collectors.toList()));
+        }
+
+        projectCollectionRepository.save(collection);
+
+        return "redirect:/collections/" + collection.getId();
+    }
+
+    @GetMapping("/{id}/export")
+    @ResponseBody
+    public ResponseEntity<ProjectCollectionExportDTO> export(@PathVariable Long id) {
+        ProjectCollection collection = projectCollectionRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Invalid collection Id:" + id));
+
+        ProjectCollectionExportDTO exportDTO = ProjectCollectionExportDTO.builder()
+                .name(collection.getName())
+                .description(collection.getDescription())
+                .routeConfigs(collection.getRouteConfigs().stream()
+                        .map(r -> RouteConfigExportDTO.builder()
+                                .pathOrigem(r.getPathOrigem())
+                                .targetHost(r.getTargetHost())
+                                .isActive(r.getIsActive())
+                                .build())
+                        .collect(Collectors.toList()))
+                .mockConfigs(collection.getMockConfigs().stream()
+                        .map(m -> MockConfigExportDTO.builder()
+                                .path(m.getPath())
+                                .httpMethod(m.getHttpMethod())
+                                .statusCode(m.getStatusCode())
+                                .responseBody(m.getResponseBody())
+                                .isActive(m.getIsActive())
+                                .build())
+                        .collect(Collectors.toList()))
+                .build();
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + collection.getName() + ".json\"")
+                .body(exportDTO);
     }
 }

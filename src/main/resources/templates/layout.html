@@ -27,6 +27,14 @@
 </head>
 <body class="bg-gray-100 font-sans h-screen flex overflow-hidden">
 
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="fixed inset-0 bg-dark bg-opacity-50 z-50 flex items-center justify-center hidden">
+        <div class="text-white text-2xl font-bold flex flex-col items-center">
+            <i class="fas fa-spinner fa-spin text-5xl mb-4"></i>
+            <span>Loading...</span>
+        </div>
+    </div>
+
     <!-- Sidebar Fragment -->
     <nav th:replace="~{fragments/sidebar :: sidebar}"></nav>
 
@@ -37,5 +45,21 @@
         </div>
     </main>
 
+    <script>
+        function showLoading() {
+            document.getElementById('loading-overlay').classList.remove('hidden');
+        }
+        function hideLoading() {
+            document.getElementById('loading-overlay').classList.add('hidden');
+        }
+
+        // Integration with HTMX
+        document.body.addEventListener('htmx:beforeRequest', showLoading);
+        document.body.addEventListener('htmx:afterRequest', hideLoading);
+        document.body.addEventListener('htmx:responseError', function(event) {
+            hideLoading();
+            alert('An error occurred: ' + event.detail.xhr.statusText);
+        });
+    </script>
 </body>
 </html>
