@@ -10,11 +10,19 @@
         <div class="px-4 mb-2 text-xs text-gray-400 uppercase tracking-wider">Collections</div>
 
         <div class="space-y-1">
-            <a th:each="collection : ${collections}" th:href="@{/collections/{id}(id=${collection.id})}"
-                class="block py-2.5 px-4 rounded transition duration-200 hover:bg-gray-700 hover:text-white"
+            <div th:each="collection : ${collections}"
+                class="flex items-center justify-between py-2.5 px-4 rounded transition duration-200 hover:bg-gray-700 group"
                 th:classappend="${collection.id == currentCollection?.id} ? 'bg-gray-700 border-l-4 border-primary' : ''">
-                <span th:text="${collection.name}">Collection Name</span>
-            </a>
+                <a th:href="@{/collections/{id}(id=${collection.id})}"
+                    class="block text-white flex-1 truncate"
+                    th:text="${collection.name}">Collection Name</a>
+                <a th:href="@{/collections/{id}/export(id=${collection.id})}"
+                    title="exportar collection"
+                    onclick="showLoading(); setTimeout(hideLoading, 2000)"
+                    class="text-gray-400 hover:text-white ml-2 opacity-0 group-hover:opacity-100 transition duration-200">
+                    <i class="fas fa-arrow-up-from-bracket"></i>
+                </a>
+            </div>
         </div>
 
         <!-- Add Collection Form (Simple) -->
@@ -28,6 +36,16 @@
                 <button type="submit"
                     class="w-full bg-primary hover:bg-secondary text-white text-sm font-bold py-2 px-4 rounded transition duration-200">
                     Create
+                </button>
+            </form>
+
+            <!-- Import Button -->
+            <form id="importForm" hx-post="/collections/import" hx-encoding="multipart/form-data" hx-target="body" hx-push-url="true" class="mt-2">
+                <input type="file" id="importFile" name="file" accept=".json" class="hidden" onchange="htmx.trigger('#importForm', 'submit')">
+                <button type="button" onclick="document.getElementById('importFile').click()"
+                    class="w-full bg-indigo-800 hover:bg-indigo-900 text-white text-sm font-bold py-2 px-4 rounded transition duration-200 flex items-center justify-center space-x-2">
+                    <i class="fas fa-arrow-down-to-bracket"></i>
+                    <span>Import Collection</span>
                 </button>
             </form>
         </div>
