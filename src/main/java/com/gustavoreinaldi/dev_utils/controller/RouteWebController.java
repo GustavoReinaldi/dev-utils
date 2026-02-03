@@ -69,6 +69,6 @@ public class RouteWebController {
                 // Let's assume we'll use hx-target="closest tr" and return a fragment.
 
                 model.addAttribute("route", route);
-                return "fragments/route-list :: route-row";
+                return "fragments/route-list :: route-row(route=${route})";
         }
 }

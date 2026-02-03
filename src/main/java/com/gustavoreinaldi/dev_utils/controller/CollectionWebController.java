@@ -8,7 +8,9 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Controller
 @RequestMapping("/collections")
@@ -44,7 +46,12 @@ public class CollectionWebController {
     // strict)
 
     @GetMapping("/{id}")
-    public String dashboard(@PathVariable Long id, Model model) {
+    public String dashboard(
+            @PathVariable Long id,
+            @RequestParam(required = false) List<String> mockStatus,
+            @RequestParam(required = false) List<String> routeStatus,
+            @RequestParam(defaultValue = "routes") String tab,
+            Model model) {
         ProjectCollection collection = projectCollectionRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Invalid collection Id:" + id));
 
@@ -52,8 +59,35 @@ public class CollectionWebController {
         // model.addAttribute("collections", allCollections); // Handled by
         // GlobalControllerAdvice
 
-        model.addAttribute("routes", collection.getRouteConfigs());
-        model.addAttribute("mocks", collection.getMockConfigs());
+        // Set defaults if null
+        if (mockStatus == null) {
+            mockStatus = Arrays.asList("active", "inactive");
+        }
+        if (routeStatus == null) {
+            routeStatus = Arrays.asList("active", "inactive");
+        }
+
+        List<com.gustavoreinaldi.dev_utils.model.entities.RouteConfig> routes = collection.getRouteConfigs();
+        if (routeStatus.size() < 2 && !routeStatus.isEmpty()) {
+            boolean activeOnly = routeStatus.contains("active");
+            routes = routes.stream()
+                    .filter(r -> r.getIsActive() == activeOnly)
+                    .collect(Collectors.toList());
+        }
+
+        List<com.gustavoreinaldi.dev_utils.model.entities.MockConfig> mocks = collection.getMockConfigs();
+        if (mockStatus.size() < 2 && !mockStatus.isEmpty()) {
+            boolean activeOnly = mockStatus.contains("active");
+            mocks = mocks.stream()
+                    .filter(m -> m.getIsActive() == activeOnly)
+                    .collect(Collectors.toList());
+        }
+
+        model.addAttribute("routes", routes);
+        model.addAttribute("mocks", mocks);
+        model.addAttribute("mockStatus", mockStatus);
+        model.addAttribute("routeStatus", routeStatus);
+        model.addAttribute("activeTab", tab);
 
         // Forms for editing and creating children
         CollectionForm collectionForm = new CollectionForm();

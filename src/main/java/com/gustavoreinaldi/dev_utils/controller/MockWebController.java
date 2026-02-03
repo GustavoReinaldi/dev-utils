@@ -61,6 +61,6 @@ public class MockWebController {
                 mockConfigRepository.save(mock);
 
                 model.addAttribute("mock", mock);
-                return "fragments/mock-list :: mock-row";
+                return "fragments/mock-list :: mock-row(mock=${mock})";
         }
 }
