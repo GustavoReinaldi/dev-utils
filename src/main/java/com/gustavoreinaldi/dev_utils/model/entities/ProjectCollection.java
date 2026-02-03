@@ -30,8 +30,6 @@ public class ProjectCollection {
 
     private String description;
 
-    private String fallbackUrl;
-
     @OneToMany(mappedBy = "projectCollection", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<RouteConfig> routeConfigs;
 

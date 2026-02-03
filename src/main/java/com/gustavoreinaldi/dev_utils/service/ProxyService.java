@@ -1,8 +1,10 @@
 package com.gustavoreinaldi.dev_utils.service;
 
+import com.gustavoreinaldi.dev_utils.model.entities.GlobalConfig;
 import com.gustavoreinaldi.dev_utils.model.entities.MockConfig;
 import com.gustavoreinaldi.dev_utils.model.entities.ProjectCollection;
 import com.gustavoreinaldi.dev_utils.model.entities.RouteConfig;
+import com.gustavoreinaldi.dev_utils.repository.GlobalConfigRepository;
 import com.gustavoreinaldi.dev_utils.repository.MockConfigRepository;
 import com.gustavoreinaldi.dev_utils.repository.ProjectCollectionRepository;
 import com.gustavoreinaldi.dev_utils.repository.RouteConfigRepository;
@@ -31,6 +33,7 @@ public class ProxyService {
     private final MockConfigRepository mockRepository;
     private final RouteConfigRepository routeRepository;
     private final ProjectCollectionRepository projectCollectionRepository;
+    private final GlobalConfigRepository globalConfigRepository;
     private final RestOperations restTemplate;
 
     public ResponseEntity<Object> processRequest(HttpServletRequest request, RequestEntity<byte[]> requestEntity) {
@@ -72,15 +75,12 @@ public class ProxyService {
             return forwardRequest(targetUrl, requestEntity);
         }
 
-        // 3. Fallback (First Active Collection)
-        List<ProjectCollection> allCollections = projectCollectionRepository.findAll();
-        if (!allCollections.isEmpty()) {
-            ProjectCollection collection = allCollections.get(0);
-            if (collection.getFallbackUrl() != null && !collection.getFallbackUrl().isEmpty()) {
-                String fallbackUrl = collection.getFallbackUrl() + path;
-                log.info("No mock/route found. Fallback to: {}", fallbackUrl);
-                return forwardRequest(fallbackUrl, requestEntity);
-            }
+        // 3. Fallback (Global Config)
+        Optional<GlobalConfig> configOpt = globalConfigRepository.findById(1L);
+        if (configOpt.isPresent() && configOpt.get().getFallbackUrl() != null && !configOpt.get().getFallbackUrl().isEmpty()) {
+            String fallbackUrl = configOpt.get().getFallbackUrl() + path;
+            log.info("No mock/route found. Fallback to: {}", fallbackUrl);
+            return forwardRequest(fallbackUrl, requestEntity);
         }
 
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body("No mock, route or fallback configured for this path.");

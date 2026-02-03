@@ -1,8 +1,10 @@
 package com.gustavoreinaldi.dev_utils;
 
+import com.gustavoreinaldi.dev_utils.model.entities.GlobalConfig;
 import com.gustavoreinaldi.dev_utils.model.entities.MockConfig;
 import com.gustavoreinaldi.dev_utils.model.entities.ProjectCollection;
 import com.gustavoreinaldi.dev_utils.model.entities.RouteConfig;
+import com.gustavoreinaldi.dev_utils.repository.GlobalConfigRepository;
 import com.gustavoreinaldi.dev_utils.repository.MockConfigRepository;
 import com.gustavoreinaldi.dev_utils.repository.ProjectCollectionRepository;
 import com.gustavoreinaldi.dev_utils.repository.RouteConfigRepository;
@@ -46,6 +48,9 @@ public class ProxyIntegrationTest {
         @Autowired
         private RouteConfigRepository routeRepo;
 
+        @Autowired
+        private GlobalConfigRepository globalConfigRepo;
+
         @MockBean
         private RestOperations restTemplate;
 
@@ -56,13 +61,19 @@ public class ProxyIntegrationTest {
                 mockRepo.deleteAll();
                 routeRepo.deleteAll();
                 collectionRepo.deleteAll();
+                globalConfigRepo.deleteAll();
 
                 ProjectCollection collection = ProjectCollection.builder()
                                 .name("Default Collection")
                                 .description("Test Collection")
-                                .fallbackUrl("http://fallback.com")
                                 .build();
                 savedCollection = collectionRepo.save(collection);
+
+                GlobalConfig globalConfig = GlobalConfig.builder()
+                                .id(1L)
+                                .fallbackUrl("http://fallback.com")
+                                .build();
+                globalConfigRepo.save(globalConfig);
         }
 
         @Test

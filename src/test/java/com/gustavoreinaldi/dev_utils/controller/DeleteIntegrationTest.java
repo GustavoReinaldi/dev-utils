@@ -54,7 +54,6 @@ public class DeleteIntegrationTest {
         ProjectCollection collection = ProjectCollection.builder()
                 .name("Default Collection")
                 .description("Test Collection")
-                .fallbackUrl("http://fallback.com")
                 .build();
         savedCollection = collectionRepo.save(collection);
     }
