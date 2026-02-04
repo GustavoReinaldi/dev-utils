@@ -111,8 +111,9 @@ public class ProxyIntegrationTest {
                 when(restTemplate.exchange(any(RequestEntity.class), eq(byte[].class)))
                                 .thenReturn(new ResponseEntity<>(responseBytes, HttpStatus.OK));
 
-                mockMvc.perform(post("/api/service/users")
-                                .content("test body"))
+                mockMvc.perform(post("/api/service/users?id=123")
+                                .content("test body")
+                                .header("X-Test", "Value"))
                                 .andExpect(status().isOk())
                                 .andExpect(content().string("proxied_response"));
 
@@ -121,8 +122,10 @@ public class ProxyIntegrationTest {
                 verify(restTemplate).exchange(captor.capture(), eq(byte[].class));
 
                 RequestEntity capturedRequest = captor.getValue();
-                assertEquals(new URI("http://backend-service.com/api/service/users"), capturedRequest.getUrl());
+                assertEquals(new URI("http://backend-service.com/api/service/users?id=123"), capturedRequest.getUrl());
                 assertEquals(HttpMethod.POST, capturedRequest.getMethod());
+                assertEquals("Value", capturedRequest.getHeaders().getFirst("X-Test"));
+                org.junit.jupiter.api.Assertions.assertArrayEquals("test body".getBytes(), (byte[]) capturedRequest.getBody());
         }
 
         @Test
@@ -134,14 +137,14 @@ public class ProxyIntegrationTest {
                 when(restTemplate.exchange(any(RequestEntity.class), eq(byte[].class)))
                                 .thenReturn(new ResponseEntity<>(responseBytes, HttpStatus.OK));
 
-                mockMvc.perform(get("/unknown/path"))
+                mockMvc.perform(get("/unknown/path?q=test"))
                                 .andExpect(status().isOk())
                                 .andExpect(content().string("fallback_response"));
 
                 // Verify RestTemplate called with fallback URL
                 ArgumentCaptor<RequestEntity> captor = ArgumentCaptor.forClass(RequestEntity.class);
                 verify(restTemplate).exchange(captor.capture(), eq(byte[].class));
-                assertEquals(new URI("http://fallback.com/unknown/path"), captor.getValue().getUrl());
+                assertEquals(new URI("http://fallback.com/unknown/path?q=test"), captor.getValue().getUrl());
         }
 
         @Test
