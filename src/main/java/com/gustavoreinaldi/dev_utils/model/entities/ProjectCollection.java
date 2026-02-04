@@ -30,6 +30,9 @@ public class ProjectCollection {
 
     private String description;
 
+    @Builder.Default
+    private Boolean isActive = true;
+
     @OneToMany(mappedBy = "projectCollection", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<RouteConfig> routeConfigs;
 

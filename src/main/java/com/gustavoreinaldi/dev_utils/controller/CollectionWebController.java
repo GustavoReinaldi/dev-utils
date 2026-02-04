@@ -108,6 +108,7 @@ public class CollectionWebController {
         CollectionForm collectionForm = new CollectionForm();
         collectionForm.setName(collection.getName());
         collectionForm.setDescription(collection.getDescription());
+        collectionForm.setIsActive(collection.getIsActive());
 
         model.addAttribute("collectionForm", collectionForm);
 
@@ -152,9 +153,19 @@ public class CollectionWebController {
         // Update fields
         collection.setName(form.getName());
         collection.setDescription(form.getDescription());
+        collection.setIsActive(form.getIsActive());
 
         projectCollectionRepository.save(collection);
 
+        return "redirect:/collections/" + id;
+    }
+
+    @PostMapping("/{id}/toggle")
+    public String toggleActive(@PathVariable Long id) {
+        ProjectCollection collection = projectCollectionRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Invalid collection Id:" + id));
+        collection.setIsActive(!collection.getIsActive());
+        projectCollectionRepository.save(collection);
         return "redirect:/collections/" + id;
     }
 

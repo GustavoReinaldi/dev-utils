@@ -13,6 +13,6 @@ public interface MockConfigRepository extends JpaRepository<MockConfig, Long> {
     @Query("SELECT m FROM MockConfig m WHERE m.projectCollection.id = :collectionId AND m.path = :path AND m.httpMethod = :method AND m.isActive = true")
     Optional<MockConfig> findActiveMockConfig(Long collectionId, String path, String method);
 
-    @Query("SELECT m FROM MockConfig m WHERE m.path = :path AND m.httpMethod = :method AND m.isActive = true")
+    @Query("SELECT m FROM MockConfig m WHERE m.path = :path AND m.httpMethod = :method AND m.isActive = true AND m.projectCollection.isActive = true")
     java.util.List<MockConfig> findActiveMockConfigs(String path, String method);
 }
