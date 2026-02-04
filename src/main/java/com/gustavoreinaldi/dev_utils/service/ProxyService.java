@@ -68,9 +68,12 @@ public class ProxyService {
             return ResponseEntity.status(HttpStatus.CONFLICT).body("Conflict: Multiple routes matched path " + path);
         }
 
+        String queryString = request.getQueryString();
+        String pathWithQuery = path + (queryString != null ? "?" + queryString : "");
+
         if (!matchingRoutes.isEmpty()) {
             RouteConfig route = matchingRoutes.get(0);
-            String targetUrl = route.getTargetHost() + path;
+            String targetUrl = route.getTargetHost() + pathWithQuery;
             log.info("Route matched. Proxying to: {}", targetUrl);
             return forwardRequest(targetUrl, requestEntity);
         }
@@ -78,7 +81,7 @@ public class ProxyService {
         // 3. Fallback (Global Config)
         Optional<GlobalConfig> configOpt = globalConfigRepository.findById(1L);
         if (configOpt.isPresent() && configOpt.get().getFallbackUrl() != null && !configOpt.get().getFallbackUrl().isEmpty()) {
-            String fallbackUrl = configOpt.get().getFallbackUrl() + path;
+            String fallbackUrl = configOpt.get().getFallbackUrl() + pathWithQuery;
             log.info("No mock/route found. Fallback to: {}", fallbackUrl);
             return forwardRequest(fallbackUrl, requestEntity);
         }
