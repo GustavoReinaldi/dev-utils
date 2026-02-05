@@ -39,8 +39,9 @@ public class ProxyService {
     public ResponseEntity<Object> processRequest(HttpServletRequest request, RequestEntity<byte[]> requestEntity) {
         String path = request.getRequestURI();
         String method = request.getMethod();
+        String scheme = request.getScheme();
 
-        log.info("Processing request: {} {}", method, path);
+        log.info("Processing request: {} {} (scheme: {})", method, path, scheme);
 
         // 1. Check Mock (Global)
         List<MockConfig> mocks = mockRepository.findActiveMockConfigs(path, method);
@@ -73,23 +74,37 @@ public class ProxyService {
 
         if (!matchingRoutes.isEmpty()) {
             RouteConfig route = matchingRoutes.get(0);
-            String targetUrl = route.getTargetHost() + pathWithQuery;
+            String targetUrl = applyScheme(route.getTargetHost() + pathWithQuery, scheme);
             log.info("Route matched. Proxying to: {}", targetUrl);
-            return forwardRequest(targetUrl, requestEntity);
+            return forwardRequest(targetUrl, requestEntity, scheme);
         }
 
         // 3. Fallback (Global Config)
         Optional<GlobalConfig> configOpt = globalConfigRepository.findById(1L);
         if (configOpt.isPresent() && configOpt.get().getFallbackUrl() != null && !configOpt.get().getFallbackUrl().isEmpty()) {
-            String fallbackUrl = configOpt.get().getFallbackUrl() + pathWithQuery;
+            String fallbackUrl = applyScheme(configOpt.get().getFallbackUrl() + pathWithQuery, scheme);
             log.info("No mock/route found. Fallback to: {}", fallbackUrl);
-            return forwardRequest(fallbackUrl, requestEntity);
+            return forwardRequest(fallbackUrl, requestEntity, scheme);
         }
 
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body("No mock, route or fallback configured for this path.");
     }
 
-    private ResponseEntity<Object> forwardRequest(String targetUrl, RequestEntity<byte[]> originalEntity) {
+    private String applyScheme(String url, String scheme) {
+        if (url == null || scheme == null)
+            return url;
+        try {
+            URI uri = new URI(url);
+            return new URI(scheme, uri.getUserInfo(), uri.getHost(), uri.getPort(), uri.getPath(), uri.getQuery(),
+                    uri.getFragment()).toString();
+        } catch (URISyntaxException e) {
+            log.warn("Could not apply scheme {} to URL {}", scheme, url);
+            return url;
+        }
+    }
+
+    private ResponseEntity<Object> forwardRequest(String targetUrl, RequestEntity<byte[]> originalEntity,
+            String originalScheme) {
         int maxRedirects = 5;
         int redirectCount = 0;
         String currentUrl = targetUrl;
@@ -112,11 +127,11 @@ public class ProxyService {
                 log.info("Forwarding request (attempt {}): {} {}", redirectCount + 1, originalEntity.getMethod(), currentUrl);
                 ResponseEntity<byte[]> response = restTemplate.exchange(forwardEntity, byte[].class);
 
-                // Manually handle redirects to preserve the original HTTP method
+                // Manually handle redirects to preserve the original HTTP method and protocol
                 if (response.getStatusCode().is3xxRedirection() && redirectCount < maxRedirects) {
                     String location = response.getHeaders().getFirst(HttpHeaders.LOCATION);
                     if (location != null) {
-                        currentUrl = uri.resolve(location).toString();
+                        currentUrl = applyScheme(uri.resolve(location).toString(), originalScheme);
                         redirectCount++;
                         log.info("Following redirect to: {}", currentUrl);
                         continue;
@@ -133,7 +148,7 @@ public class ProxyService {
                     String location = e.getResponseHeaders().getFirst(HttpHeaders.LOCATION);
                     if (location != null) {
                         try {
-                            currentUrl = new URI(currentUrl).resolve(location).toString();
+                            currentUrl = applyScheme(new URI(currentUrl).resolve(location).toString(), originalScheme);
                             redirectCount++;
                             log.info("Following redirect (from exception) to: {}", currentUrl);
                             continue;
