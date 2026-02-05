@@ -103,6 +103,18 @@ public class ProxyService {
         }
     }
 
+    private HttpHeaders filterHeaders(HttpHeaders headers) {
+        HttpHeaders filtered = new HttpHeaders();
+        if (headers == null)
+            return filtered;
+        headers.forEach((name, values) -> {
+            if (!name.toLowerCase().startsWith("access-control-")) {
+                filtered.addAll(name, values);
+            }
+        });
+        return filtered;
+    }
+
     private ResponseEntity<Object> forwardRequest(String targetUrl, RequestEntity<byte[]> originalEntity,
             String originalScheme) {
         int maxRedirects = 5;
@@ -139,7 +151,7 @@ public class ProxyService {
                 }
 
                 return ResponseEntity.status(response.getStatusCode())
-                        .headers(response.getHeaders())
+                        .headers(filterHeaders(response.getHeaders()))
                         .body(response.getBody());
 
             } catch (HttpClientErrorException | HttpServerErrorException e) {
@@ -158,7 +170,7 @@ public class ProxyService {
                     }
                 }
                 return ResponseEntity.status(e.getStatusCode())
-                        .headers(e.getResponseHeaders())
+                        .headers(filterHeaders(e.getResponseHeaders()))
                         .body(e.getResponseBodyAsByteArray());
             } catch (URISyntaxException e) {
                 log.error("Invalid Target URL: {}", currentUrl, e);

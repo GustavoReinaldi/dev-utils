@@ -303,4 +303,35 @@ public class ProxyIntegrationTest {
                 assertEquals(new URI("https://backend.com/api/redirect-secure"), capturedRequests.get(0).getUrl());
                 assertEquals(new URI("https://another-backend.com/target"), capturedRequests.get(1).getUrl());
         }
+
+        @Test
+        void testCorsHeaderFiltering() throws Exception {
+                RouteConfig route = RouteConfig.builder()
+                                .projectCollection(savedCollection)
+                                .pathOrigem("/api/cors")
+                                .targetHost("http://backend.com")
+                                .isActive(true)
+                                .build();
+                routeRepo.save(route);
+
+                HttpHeaders targetHeaders = new HttpHeaders();
+                targetHeaders.add("Access-Control-Allow-Origin", "http://attacker.com");
+                targetHeaders.add("X-Custom-Header", "value");
+
+                ResponseEntity<byte[]> targetResponse = new ResponseEntity<>(
+                                "response".getBytes(),
+                                targetHeaders,
+                                HttpStatus.OK);
+
+                when(restTemplate.exchange(any(RequestEntity.class), eq(byte[].class)))
+                                .thenReturn(targetResponse);
+
+                mockMvc.perform(get("/api/cors")
+                                .header("Origin", "http://legit.com"))
+                                .andExpect(status().isOk())
+                                .andExpect(header().string("X-Custom-Header", "value"))
+                                // The target's CORS header should be stripped
+                                .andExpect(header().string("Access-Control-Allow-Origin", "http://legit.com"))
+                                .andExpect(header().string("Access-Control-Allow-Credentials", "true"));
+        }
 }
