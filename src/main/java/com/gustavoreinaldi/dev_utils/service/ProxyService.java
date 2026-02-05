@@ -90,27 +90,68 @@ public class ProxyService {
     }
 
     private ResponseEntity<Object> forwardRequest(String targetUrl, RequestEntity<byte[]> originalEntity) {
-        try {
-            URI uri = new URI(targetUrl);
-            RequestEntity<byte[]> forwardEntity = new RequestEntity<>(
-                    originalEntity.getBody(),
-                    originalEntity.getHeaders(),
-                    originalEntity.getMethod(),
-                    uri);
-            ResponseEntity<byte[]> response = restTemplate.exchange(forwardEntity, byte[].class);
-            return ResponseEntity.status(response.getStatusCode())
-                    .headers(response.getHeaders())
-                    .body(response.getBody());
-        } catch (HttpClientErrorException | HttpServerErrorException e) {
-            return ResponseEntity.status(e.getStatusCode())
-                    .headers(e.getResponseHeaders())
-                    .body(e.getResponseBodyAsByteArray());
-        } catch (URISyntaxException e) {
-            log.error("Invalid Target URL: {}", targetUrl, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Invalid Target URL Configuration");
-        } catch (Exception e) {
-            log.error("Proxy Error", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Proxy Error: " + e.getMessage());
+        int maxRedirects = 5;
+        int redirectCount = 0;
+        String currentUrl = targetUrl;
+
+        while (true) {
+            try {
+                URI uri = new URI(currentUrl);
+
+                // Copy headers and remove Host header to let the proxy set it correctly
+                HttpHeaders headers = new HttpHeaders();
+                headers.putAll(originalEntity.getHeaders());
+                headers.remove(HttpHeaders.HOST);
+
+                RequestEntity<byte[]> forwardEntity = new RequestEntity<>(
+                        originalEntity.getBody(),
+                        headers,
+                        originalEntity.getMethod(),
+                        uri);
+
+                log.info("Forwarding request (attempt {}): {} {}", redirectCount + 1, originalEntity.getMethod(), currentUrl);
+                ResponseEntity<byte[]> response = restTemplate.exchange(forwardEntity, byte[].class);
+
+                // Manually handle redirects to preserve the original HTTP method
+                if (response.getStatusCode().is3xxRedirection() && redirectCount < maxRedirects) {
+                    String location = response.getHeaders().getFirst(HttpHeaders.LOCATION);
+                    if (location != null) {
+                        currentUrl = uri.resolve(location).toString();
+                        redirectCount++;
+                        log.info("Following redirect to: {}", currentUrl);
+                        continue;
+                    }
+                }
+
+                return ResponseEntity.status(response.getStatusCode())
+                        .headers(response.getHeaders())
+                        .body(response.getBody());
+
+            } catch (HttpClientErrorException | HttpServerErrorException e) {
+                // Also handle redirects that might be reported as exceptions by RestTemplate
+                if (e.getStatusCode().is3xxRedirection() && redirectCount < maxRedirects) {
+                    String location = e.getResponseHeaders().getFirst(HttpHeaders.LOCATION);
+                    if (location != null) {
+                        try {
+                            currentUrl = new URI(currentUrl).resolve(location).toString();
+                            redirectCount++;
+                            log.info("Following redirect (from exception) to: {}", currentUrl);
+                            continue;
+                        } catch (Exception ex) {
+                            log.error("Error resolving redirect URI", ex);
+                        }
+                    }
+                }
+                return ResponseEntity.status(e.getStatusCode())
+                        .headers(e.getResponseHeaders())
+                        .body(e.getResponseBodyAsByteArray());
+            } catch (URISyntaxException e) {
+                log.error("Invalid Target URL: {}", currentUrl, e);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Invalid Target URL Configuration");
+            } catch (Exception e) {
+                log.error("Proxy Error", e);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Proxy Error: " + e.getMessage());
+            }
         }
     }
 }
