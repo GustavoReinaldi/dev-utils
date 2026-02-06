@@ -39,8 +39,9 @@ public class ProxyService {
     public ResponseEntity<Object> processRequest(HttpServletRequest request, RequestEntity<byte[]> requestEntity) {
         String path = request.getRequestURI();
         String method = request.getMethod();
+        String scheme = request.getScheme();
 
-        log.info("Processing request: {} {}", method, path);
+        log.info("Processing request: {} {} (scheme: {})", method, path, scheme);
 
         // 1. Check Mock (Global)
         List<MockConfig> mocks = mockRepository.findActiveMockConfigs(path, method);
@@ -73,44 +74,111 @@ public class ProxyService {
 
         if (!matchingRoutes.isEmpty()) {
             RouteConfig route = matchingRoutes.get(0);
-            String targetUrl = route.getTargetHost() + pathWithQuery;
+            String targetUrl = applyScheme(route.getTargetHost() + pathWithQuery, scheme);
             log.info("Route matched. Proxying to: {}", targetUrl);
-            return forwardRequest(targetUrl, requestEntity);
+            return forwardRequest(targetUrl, requestEntity, scheme);
         }
 
         // 3. Fallback (Global Config)
         Optional<GlobalConfig> configOpt = globalConfigRepository.findById(1L);
         if (configOpt.isPresent() && configOpt.get().getFallbackUrl() != null && !configOpt.get().getFallbackUrl().isEmpty()) {
-            String fallbackUrl = configOpt.get().getFallbackUrl() + pathWithQuery;
+            String fallbackUrl = applyScheme(configOpt.get().getFallbackUrl() + pathWithQuery, scheme);
             log.info("No mock/route found. Fallback to: {}", fallbackUrl);
-            return forwardRequest(fallbackUrl, requestEntity);
+            return forwardRequest(fallbackUrl, requestEntity, scheme);
         }
 
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body("No mock, route or fallback configured for this path.");
     }
 
-    private ResponseEntity<Object> forwardRequest(String targetUrl, RequestEntity<byte[]> originalEntity) {
+    private String applyScheme(String url, String scheme) {
+        if (url == null || scheme == null)
+            return url;
         try {
-            URI uri = new URI(targetUrl);
-            RequestEntity<byte[]> forwardEntity = new RequestEntity<>(
-                    originalEntity.getBody(),
-                    originalEntity.getHeaders(),
-                    originalEntity.getMethod(),
-                    uri);
-            ResponseEntity<byte[]> response = restTemplate.exchange(forwardEntity, byte[].class);
-            return ResponseEntity.status(response.getStatusCode())
-                    .headers(response.getHeaders())
-                    .body(response.getBody());
-        } catch (HttpClientErrorException | HttpServerErrorException e) {
-            return ResponseEntity.status(e.getStatusCode())
-                    .headers(e.getResponseHeaders())
-                    .body(e.getResponseBodyAsByteArray());
+            URI uri = new URI(url);
+            return new URI(scheme, uri.getUserInfo(), uri.getHost(), uri.getPort(), uri.getPath(), uri.getQuery(),
+                    uri.getFragment()).toString();
         } catch (URISyntaxException e) {
-            log.error("Invalid Target URL: {}", targetUrl, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Invalid Target URL Configuration");
-        } catch (Exception e) {
-            log.error("Proxy Error", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Proxy Error: " + e.getMessage());
+            log.warn("Could not apply scheme {} to URL {}", scheme, url);
+            return url;
+        }
+    }
+
+    private HttpHeaders filterHeaders(HttpHeaders headers) {
+        HttpHeaders filtered = new HttpHeaders();
+        if (headers == null)
+            return filtered;
+        headers.forEach((name, values) -> {
+            if (!name.toLowerCase().startsWith("access-control-")) {
+                filtered.addAll(name, values);
+            }
+        });
+        return filtered;
+    }
+
+    private ResponseEntity<Object> forwardRequest(String targetUrl, RequestEntity<byte[]> originalEntity,
+            String originalScheme) {
+        int maxRedirects = 5;
+        int redirectCount = 0;
+        String currentUrl = targetUrl;
+
+        while (true) {
+            try {
+                URI uri = new URI(currentUrl);
+
+                // Copy headers and remove Host header to let the proxy set it correctly
+                HttpHeaders headers = new HttpHeaders();
+                headers.putAll(originalEntity.getHeaders());
+                headers.remove(HttpHeaders.HOST);
+
+                RequestEntity<byte[]> forwardEntity = new RequestEntity<>(
+                        originalEntity.getBody(),
+                        headers,
+                        originalEntity.getMethod(),
+                        uri);
+
+                log.info("Forwarding request (attempt {}): {} {}", redirectCount + 1, originalEntity.getMethod(), currentUrl);
+                ResponseEntity<byte[]> response = restTemplate.exchange(forwardEntity, byte[].class);
+
+                // Manually handle redirects to preserve the original HTTP method and protocol
+                if (response.getStatusCode().is3xxRedirection() && redirectCount < maxRedirects) {
+                    String location = response.getHeaders().getFirst(HttpHeaders.LOCATION);
+                    if (location != null) {
+                        currentUrl = applyScheme(uri.resolve(location).toString(), originalScheme);
+                        redirectCount++;
+                        log.info("Following redirect to: {}", currentUrl);
+                        continue;
+                    }
+                }
+
+                return ResponseEntity.status(response.getStatusCode())
+                        .headers(filterHeaders(response.getHeaders()))
+                        .body(response.getBody());
+
+            } catch (HttpClientErrorException | HttpServerErrorException e) {
+                // Also handle redirects that might be reported as exceptions by RestTemplate
+                if (e.getStatusCode().is3xxRedirection() && redirectCount < maxRedirects) {
+                    String location = e.getResponseHeaders().getFirst(HttpHeaders.LOCATION);
+                    if (location != null) {
+                        try {
+                            currentUrl = applyScheme(new URI(currentUrl).resolve(location).toString(), originalScheme);
+                            redirectCount++;
+                            log.info("Following redirect (from exception) to: {}", currentUrl);
+                            continue;
+                        } catch (Exception ex) {
+                            log.error("Error resolving redirect URI", ex);
+                        }
+                    }
+                }
+                return ResponseEntity.status(e.getStatusCode())
+                        .headers(filterHeaders(e.getResponseHeaders()))
+                        .body(e.getResponseBodyAsByteArray());
+            } catch (URISyntaxException e) {
+                log.error("Invalid Target URL: {}", currentUrl, e);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Invalid Target URL Configuration");
+            } catch (Exception e) {
+                log.error("Proxy Error", e);
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Proxy Error: " + e.getMessage());
+            }
         }
     }
 }

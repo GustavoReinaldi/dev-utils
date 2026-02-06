@@ -8,6 +8,7 @@ import com.gustavoreinaldi.dev_utils.repository.GlobalConfigRepository;
 import com.gustavoreinaldi.dev_utils.repository.MockConfigRepository;
 import com.gustavoreinaldi.dev_utils.repository.ProjectCollectionRepository;
 import com.gustavoreinaldi.dev_utils.repository.RouteConfigRepository;
+import org.springframework.http.HttpHeaders;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -23,6 +24,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.client.RestOperations;
 
 import java.net.URI;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -230,5 +232,106 @@ public class ProxyIntegrationTest {
                 mockMvc.perform(get("/api/c2"))
                                 .andExpect(status().isAccepted())
                                 .andExpect(content().string("c2"));
+        }
+
+        @Test
+        void testProtocolPreservation() throws Exception {
+                RouteConfig route = RouteConfig.builder()
+                                .projectCollection(savedCollection)
+                                .pathOrigem("/api/secure")
+                                .targetHost("http://insecure-backend.com")
+                                .isActive(true)
+                                .build();
+                routeRepo.save(route);
+
+                byte[] responseBytes = "secure_response".getBytes();
+                when(restTemplate.exchange(any(RequestEntity.class), eq(byte[].class)))
+                                .thenReturn(new ResponseEntity<>(responseBytes, HttpStatus.OK));
+
+                // Perform request with HTTPS
+                mockMvc.perform(get("/api/secure")
+                                .with(request -> {
+                                        request.setScheme("https");
+                                        request.setServerPort(443);
+                                        return request;
+                                }))
+                                .andExpect(status().isOk());
+
+                ArgumentCaptor<RequestEntity> captor = ArgumentCaptor.forClass(RequestEntity.class);
+                verify(restTemplate).exchange(captor.capture(), eq(byte[].class));
+
+                // Verify the outgoing URL uses HTTPS even though targetHost was configured as
+                // HTTP
+                assertEquals(new URI("https://insecure-backend.com/api/secure"), captor.getValue().getUrl());
+        }
+
+        @Test
+        void testProtocolPreservationOnRedirect() throws Exception {
+                RouteConfig route = RouteConfig.builder()
+                                .projectCollection(savedCollection)
+                                .pathOrigem("/api/redirect-secure")
+                                .targetHost("http://backend.com")
+                                .isActive(true)
+                                .build();
+                routeRepo.save(route);
+
+                // 1st call returns 302 to an insecure location
+                ResponseEntity<byte[]> redirectResponse = ResponseEntity.status(HttpStatus.FOUND)
+                                .header(HttpHeaders.LOCATION, "http://another-backend.com/target")
+                                .build();
+
+                // 2nd call returns 200 OK
+                ResponseEntity<byte[]> finalResponse = ResponseEntity.ok("success".getBytes());
+
+                when(restTemplate.exchange(any(RequestEntity.class), eq(byte[].class)))
+                                .thenReturn(redirectResponse)
+                                .thenReturn(finalResponse);
+
+                mockMvc.perform(get("/api/redirect-secure")
+                                .with(request -> {
+                                        request.setScheme("https");
+                                        request.setServerPort(443);
+                                        return request;
+                                }))
+                                .andExpect(status().isOk());
+
+                ArgumentCaptor<RequestEntity> captor = ArgumentCaptor.forClass(RequestEntity.class);
+                verify(restTemplate, org.mockito.Mockito.times(2)).exchange(captor.capture(), eq(byte[].class));
+
+                List<RequestEntity> capturedRequests = captor.getAllValues();
+                // Both should be HTTPS
+                assertEquals(new URI("https://backend.com/api/redirect-secure"), capturedRequests.get(0).getUrl());
+                assertEquals(new URI("https://another-backend.com/target"), capturedRequests.get(1).getUrl());
+        }
+
+        @Test
+        void testCorsHeaderFiltering() throws Exception {
+                RouteConfig route = RouteConfig.builder()
+                                .projectCollection(savedCollection)
+                                .pathOrigem("/api/cors")
+                                .targetHost("http://backend.com")
+                                .isActive(true)
+                                .build();
+                routeRepo.save(route);
+
+                HttpHeaders targetHeaders = new HttpHeaders();
+                targetHeaders.add("Access-Control-Allow-Origin", "http://attacker.com");
+                targetHeaders.add("X-Custom-Header", "value");
+
+                ResponseEntity<byte[]> targetResponse = new ResponseEntity<>(
+                                "response".getBytes(),
+                                targetHeaders,
+                                HttpStatus.OK);
+
+                when(restTemplate.exchange(any(RequestEntity.class), eq(byte[].class)))
+                                .thenReturn(targetResponse);
+
+                mockMvc.perform(get("/api/cors")
+                                .header("Origin", "http://legit.com"))
+                                .andExpect(status().isOk())
+                                .andExpect(header().string("X-Custom-Header", "value"))
+                                // The target's CORS header should be stripped
+                                .andExpect(header().string("Access-Control-Allow-Origin", "http://legit.com"))
+                                .andExpect(header().string("Access-Control-Allow-Credentials", "true"));
         }
 }
