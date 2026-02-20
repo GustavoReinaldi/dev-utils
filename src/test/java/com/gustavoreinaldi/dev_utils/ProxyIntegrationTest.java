@@ -235,7 +235,8 @@ public class ProxyIntegrationTest {
         }
 
         @Test
-        void testProtocolPreservation() throws Exception {
+        void testNoProtocolForcing() throws Exception {
+                // Should use the scheme configured in targetHost, not the client's scheme
                 RouteConfig route = RouteConfig.builder()
                                 .projectCollection(savedCollection)
                                 .pathOrigem("/api/secure")
@@ -260,24 +261,23 @@ public class ProxyIntegrationTest {
                 ArgumentCaptor<RequestEntity> captor = ArgumentCaptor.forClass(RequestEntity.class);
                 verify(restTemplate).exchange(captor.capture(), eq(byte[].class));
 
-                // Verify the outgoing URL uses HTTPS even though targetHost was configured as
-                // HTTP
-                assertEquals(new URI("https://insecure-backend.com/api/secure"), captor.getValue().getUrl());
+                // Verify the outgoing URL uses HTTP as configured, even though client used HTTPS
+                assertEquals(new URI("http://insecure-backend.com/api/secure"), captor.getValue().getUrl());
         }
 
         @Test
-        void testProtocolPreservationOnRedirect() throws Exception {
+        void testProtocolSwitchOnRedirect() throws Exception {
                 RouteConfig route = RouteConfig.builder()
                                 .projectCollection(savedCollection)
-                                .pathOrigem("/api/redirect-secure")
+                                .pathOrigem("/api/redirect-proto")
                                 .targetHost("http://backend.com")
                                 .isActive(true)
                                 .build();
                 routeRepo.save(route);
 
-                // 1st call returns 302 to an insecure location
+                // 1st call returns 302 to a secure location
                 ResponseEntity<byte[]> redirectResponse = ResponseEntity.status(HttpStatus.FOUND)
-                                .header(HttpHeaders.LOCATION, "http://another-backend.com/target")
+                                .header(HttpHeaders.LOCATION, "https://secure-backend.com/target")
                                 .build();
 
                 // 2nd call returns 200 OK
@@ -287,21 +287,16 @@ public class ProxyIntegrationTest {
                                 .thenReturn(redirectResponse)
                                 .thenReturn(finalResponse);
 
-                mockMvc.perform(get("/api/redirect-secure")
-                                .with(request -> {
-                                        request.setScheme("https");
-                                        request.setServerPort(443);
-                                        return request;
-                                }))
+                mockMvc.perform(get("/api/redirect-proto"))
                                 .andExpect(status().isOk());
 
                 ArgumentCaptor<RequestEntity> captor = ArgumentCaptor.forClass(RequestEntity.class);
                 verify(restTemplate, org.mockito.Mockito.times(2)).exchange(captor.capture(), eq(byte[].class));
 
                 List<RequestEntity> capturedRequests = captor.getAllValues();
-                // Both should be HTTPS
-                assertEquals(new URI("https://backend.com/api/redirect-secure"), capturedRequests.get(0).getUrl());
-                assertEquals(new URI("https://another-backend.com/target"), capturedRequests.get(1).getUrl());
+                // First is HTTP, second is HTTPS
+                assertEquals(new URI("http://backend.com/api/redirect-proto"), capturedRequests.get(0).getUrl());
+                assertEquals(new URI("https://secure-backend.com/target"), capturedRequests.get(1).getUrl());
         }
 
         @Test
