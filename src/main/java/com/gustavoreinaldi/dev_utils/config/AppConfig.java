@@ -1,18 +1,46 @@
 package com.gustavoreinaldi.dev_utils.config;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.core5.util.Timeout;
+import org.springframework.boot.web.servlet.filter.OrderedHiddenHttpMethodFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.HttpComponentsClientHttpRequestFactory;
 import org.springframework.web.client.RestTemplate;
 
-import java.net.URI;
+import java.util.Arrays;
+import java.util.List;
 
 @Configuration
 public class AppConfig {
+
+    @Bean
+    public OrderedHiddenHttpMethodFilter hiddenHttpMethodFilter() {
+        return new OrderedHiddenHttpMethodFilter() {
+            @Override
+            protected boolean shouldNotFilter(HttpServletRequest request) {
+                String path = request.getRequestURI();
+                List<String> localPrefixes = Arrays.asList(
+                        "/collections", "/routes", "/mocks", "/welcome", "/css", "/js", "/images", "/webjars", "/favicon.ico", "/error"
+                );
+
+                if (path.equals("/") || path.isEmpty()) {
+                    return false; // Do not skip for root
+                }
+
+                for (String prefix : localPrefixes) {
+                    if (path.startsWith(prefix)) {
+                        return false; // Do not skip for local paths
+                    }
+                }
+
+                return true; // Skip for everything else (proxy requests)
+            }
+        };
+    }
 
     @Bean
     public RestTemplate restTemplate() {
