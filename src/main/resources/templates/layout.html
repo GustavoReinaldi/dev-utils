@@ -45,6 +45,16 @@
         </div>
     </main>
 
+    <!-- Generic Modal -->
+    <div id="modal-container" class="fixed inset-0 z-40 hidden">
+        <div class="fixed inset-0 bg-gray-900 bg-opacity-50 transition-opacity" onclick="closeModal()"></div>
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div id="modal-content" class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+                <!-- HTMX will load content here -->
+            </div>
+        </div>
+    </div>
+
     <script>
         function showLoading() {
             document.getElementById('loading-overlay').classList.remove('hidden');
@@ -53,13 +63,31 @@
             document.getElementById('loading-overlay').classList.add('hidden');
         }
 
+        function openModal() {
+            document.getElementById('modal-container').classList.remove('hidden');
+            document.body.classList.add('overflow-hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('modal-container').classList.add('hidden');
+            document.body.classList.remove('overflow-hidden');
+            document.getElementById('modal-content').innerHTML = '';
+        }
+
         // Integration with HTMX
-        document.body.addEventListener('htmx:beforeRequest', showLoading);
-        document.body.addEventListener('htmx:afterRequest', hideLoading);
+        document.body.addEventListener('htmx:beforeRequest', (evt) => {
+            showLoading();
+        });
+        document.body.addEventListener('htmx:afterRequest', (evt) => {
+            hideLoading();
+        });
         document.body.addEventListener('htmx:responseError', function(event) {
             hideLoading();
             alert('An error occurred: ' + event.detail.xhr.statusText);
         });
+
+        // Listen for a custom event to close the modal
+        document.body.addEventListener('closeModal', closeModal);
     </script>
 </body>
 </html>

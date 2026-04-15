@@ -69,7 +69,7 @@
                     <tr th:replace="~{::route-row(${route})}"></tr>
                 </th:block>
 
-                <tr th:fragment="route-row(route)" th:if="${route != null}"
+                <tr th:fragment="route-row(route)" th:if="${route != null}" th:id="'route-row-' + ${route.id}"
                     class="border-b border-gray-200 hover:bg-gray-50 transition duration-150">
                     <td class="py-3 px-6 text-left whitespace-nowrap">
                         <button th:hx-patch="@{/routes/{id}/toggle(id=${route.id})}" th:hx-target="'closest tr'"
@@ -89,6 +89,11 @@
                     </td>
                     <td class="py-3 px-6 text-center">
                         <div class="flex item-center justify-center">
+                            <button th:hx-get="@{/routes/{id}/edit(id=${route.id})}" hx-target="#modal-content"
+                                onclick="openModal()"
+                                class="w-4 mr-3 transform hover:text-indigo-500 hover:scale-110 transition duration-150">
+                                <i class="fas fa-edit"></i>
+                            </button>
                             <form th:action="@{/routes/{id}(id=${route.id})}" th:method="delete"
                                 onsubmit="return confirm('Delete this route?');">
                                 <button type="submit"
@@ -108,5 +113,39 @@
                 </tr>
             </tbody>
         </table>
+    </div>
+    <div th:fragment="edit-route-form(route, routeForm)" th:if="${route != null}" class="p-6">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-bold text-gray-800">Edit Proxy Route</h3>
+            <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+        <form th:hx-post="@{/routes/{id}(id=${route.id})}" th:hx-target="'#route-row-' + ${route.id}"
+            hx-swap="outerHTML" th:object="${routeForm}" class="space-y-4">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs uppercase text-gray-500 font-bold mb-1">Source Path Prefix</label>
+                    <input type="text" th:field="*{pathOrigem}" placeholder="/api/service-a" required
+                        class="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:border-indigo-500 font-mono">
+                </div>
+                <div>
+                    <label class="block text-xs uppercase text-gray-500 font-bold mb-1">Target Host URL</label>
+                    <input type="text" th:field="*{targetHost}" placeholder="http://service-a:8080" required
+                        class="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:border-indigo-500 font-mono">
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-3 pt-4">
+                <button type="button" onclick="closeModal()"
+                    class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+                    Cancel
+                </button>
+                <button type="submit"
+                    class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Save Changes
+                </button>
+            </div>
+        </form>
     </div>
 </div>
