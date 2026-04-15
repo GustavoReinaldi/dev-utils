@@ -93,7 +93,7 @@
                     <tr th:replace="~{::mock-row(${mock})}"></tr>
                 </th:block>
 
-                <tr th:fragment="mock-row(mock)" th:if="${mock != null}"
+                <tr th:fragment="mock-row(mock)" th:if="${mock != null}" th:id="'mock-row-' + ${mock.id}"
                     class="border-b border-gray-200 hover:bg-gray-50 transition duration-150">
                     <td class="py-3 px-6 text-left whitespace-nowrap">
                         <button th:hx-patch="@{/mocks/{id}/toggle(id=${mock.id})}" th:hx-target="'closest tr'"
@@ -121,6 +121,11 @@
                     </td>
                     <td class="py-3 px-6 text-center">
                         <div class="flex item-center justify-center">
+                            <button th:hx-get="@{/mocks/{id}/edit(id=${mock.id})}" hx-target="#modal-content"
+                                onclick="openModal()"
+                                class="w-4 mr-3 transform hover:text-indigo-500 hover:scale-110 transition duration-150">
+                                <i class="fas fa-edit"></i>
+                            </button>
                             <form th:action="@{/mocks/{id}(id=${mock.id})}" th:method="delete"
                                 onsubmit="return confirm('Delete this mock?');">
                                 <button type="submit"
@@ -140,5 +145,57 @@
                 </tr>
             </tbody>
         </table>
+    </div>
+    <div th:fragment="edit-mock-form(mock, mockForm)" th:if="${mock != null}" class="p-6">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-bold text-gray-800">Edit Mock Response</h3>
+            <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+        <form th:hx-post="@{/mocks/{id}(id=${mock.id})}" th:hx-target="'#mock-row-' + ${mock.id}"
+            hx-swap="outerHTML" th:object="${mockForm}" class="space-y-4">
+            <div class="flex flex-wrap gap-4 items-start">
+                <div class="w-32">
+                    <label class="block text-xs uppercase text-gray-500 font-bold mb-1">Method</label>
+                    <select th:field="*{httpMethod}"
+                        class="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:border-indigo-500 bg-white">
+                        <option value="GET">GET</option>
+                        <option value="POST">POST</option>
+                        <option value="PUT">PUT</option>
+                        <option value="DELETE">DELETE</option>
+                        <option value="PATCH">PATCH</option>
+                        <option value="OPTIONS">OPTIONS</option>
+                    </select>
+                </div>
+                <div class="flex-1 min-w-[200px]">
+                    <label class="block text-xs uppercase text-gray-500 font-bold mb-1">Path Pattern</label>
+                    <input type="text" th:field="*{path}" placeholder="/api/users/1" required
+                        class="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:border-indigo-500 font-mono">
+                </div>
+                <div class="w-24">
+                    <label class="block text-xs uppercase text-gray-500 font-bold mb-1">Status</label>
+                    <input type="number" th:field="*{statusCode}" required
+                        class="w-full px-3 py-2 text-sm border rounded focus:outline-none focus:border-indigo-500 font-mono text-center">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs uppercase text-gray-500 font-bold mb-1">Response Body (JSON)</label>
+                <textarea th:field="*{responseBody}" rows="5" placeholder='{"message": "Hello World"}'
+                    class="w-full px-3 py-2 text-xs border rounded focus:outline-none focus:border-indigo-500 font-mono"></textarea>
+            </div>
+
+            <div class="flex justify-end space-x-3 pt-4">
+                <button type="button" onclick="closeModal()"
+                    class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+                    Cancel
+                </button>
+                <button type="submit"
+                    class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Save Changes
+                </button>
+            </div>
+        </form>
     </div>
 </div>

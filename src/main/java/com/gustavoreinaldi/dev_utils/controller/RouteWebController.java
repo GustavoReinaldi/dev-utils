@@ -71,4 +71,42 @@ public class RouteWebController {
                 model.addAttribute("route", route);
                 return "fragments/route-list :: route-row(route=${route})";
         }
+
+        @GetMapping("/{id}/edit")
+        public String editRoute(@PathVariable Long id, Model model) {
+                RouteConfig route = routeConfigRepository.findById(id)
+                                .orElseThrow(() -> new IllegalArgumentException("Invalid route Id:" + id));
+
+                RouteForm form = new RouteForm();
+                form.setPathOrigem(route.getPathOrigem());
+                form.setTargetHost(route.getTargetHost());
+
+                model.addAttribute("route", route);
+                model.addAttribute("routeForm", form);
+                return "fragments/route-list :: edit-route-form(route=${route}, routeForm=${routeForm})";
+        }
+
+        @PostMapping("/{id}")
+        public String updateRoute(@PathVariable Long id, @jakarta.validation.Valid @ModelAttribute RouteForm form,
+                        org.springframework.validation.BindingResult bindingResult,
+                        Model model,
+                        jakarta.servlet.http.HttpServletResponse response) {
+                RouteConfig route = routeConfigRepository.findById(id)
+                                .orElseThrow(() -> new IllegalArgumentException("Invalid route Id:" + id));
+
+                if (bindingResult.hasErrors()) {
+                        model.addAttribute("route", route);
+                        model.addAttribute("routeForm", form);
+                        return "fragments/route-list :: edit-route-form(route=${route}, routeForm=${routeForm})";
+                }
+
+                route.setPathOrigem(form.getPathOrigem());
+                route.setTargetHost(form.getTargetHost());
+
+                routeConfigRepository.save(route);
+
+                response.addHeader("HX-Trigger", "closeModal");
+                model.addAttribute("route", route);
+                return "fragments/route-list :: route-row(route=${route})";
+        }
 }

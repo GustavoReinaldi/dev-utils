@@ -63,4 +63,46 @@ public class MockWebController {
                 model.addAttribute("mock", mock);
                 return "fragments/mock-list :: mock-row(mock=${mock})";
         }
+
+        @GetMapping("/{id}/edit")
+        public String editMock(@PathVariable Long id, Model model) {
+                MockConfig mock = mockConfigRepository.findById(id)
+                                .orElseThrow(() -> new IllegalArgumentException("Invalid mock Id:" + id));
+
+                MockForm form = new MockForm();
+                form.setPath(mock.getPath());
+                form.setHttpMethod(mock.getHttpMethod());
+                form.setStatusCode(mock.getStatusCode());
+                form.setResponseBody(mock.getResponseBody());
+
+                model.addAttribute("mock", mock);
+                model.addAttribute("mockForm", form);
+                return "fragments/mock-list :: edit-mock-form(mock=${mock}, mockForm=${mockForm})";
+        }
+
+        @PostMapping("/{id}")
+        public String updateMock(@PathVariable Long id, @jakarta.validation.Valid @ModelAttribute MockForm form,
+                        org.springframework.validation.BindingResult bindingResult,
+                        Model model,
+                        jakarta.servlet.http.HttpServletResponse response) {
+                MockConfig mock = mockConfigRepository.findById(id)
+                                .orElseThrow(() -> new IllegalArgumentException("Invalid mock Id:" + id));
+
+                if (bindingResult.hasErrors()) {
+                        model.addAttribute("mock", mock);
+                        model.addAttribute("mockForm", form);
+                        return "fragments/mock-list :: edit-mock-form(mock=${mock}, mockForm=${mockForm})";
+                }
+
+                mock.setPath(form.getPath());
+                mock.setHttpMethod(form.getHttpMethod());
+                mock.setStatusCode(form.getStatusCode());
+                mock.setResponseBody(form.getResponseBody());
+
+                mockConfigRepository.save(mock);
+
+                response.addHeader("HX-Trigger", "closeModal");
+                model.addAttribute("mock", mock);
+                return "fragments/mock-list :: mock-row(mock=${mock})";
+        }
 }
